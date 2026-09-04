@@ -5,25 +5,34 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.chatapp.core.Constants.Navigation.CHAT_ROUTE
+import com.example.chatapp.core.Constants.Navigation.CREATE_PROFILE_ROUTE
+import com.example.chatapp.core.Constants.Navigation.ONBOARDING_ROUTE
+import com.example.chatapp.features.users.presentation.createProfile.view.CreateProfileRoute
+import com.example.chatapp.features.users.presentation.onboarding.view.OnboardingRoute
 import com.example.chatapp.ui.theme.ChatAppTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             ChatAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    ChatAppNavHost()
                 }
             }
         }
@@ -31,17 +40,35 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+private fun ChatAppNavHost() {
+    val navController = rememberNavController()
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ChatAppTheme {
-        Greeting("Android")
+    NavHost(navController = navController, startDestination = ONBOARDING_ROUTE) {
+        composable(ONBOARDING_ROUTE) {
+            OnboardingRoute(
+                onNavigateToChat = {
+                    navController.navigate(CHAT_ROUTE) {
+                        popUpTo(ONBOARDING_ROUTE) { inclusive = true }
+                    }
+                },
+                onNavigateToCreateProfile = {
+                    navController.navigate(CREATE_PROFILE_ROUTE) {
+                        popUpTo(ONBOARDING_ROUTE) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(CREATE_PROFILE_ROUTE) {
+            CreateProfileRoute(
+                onNavigateToChat = {
+                    navController.navigate(CHAT_ROUTE) {
+                        popUpTo(CREATE_PROFILE_ROUTE) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(CHAT_ROUTE) {
+            Text(text = "Chat")
+        }
     }
 }
