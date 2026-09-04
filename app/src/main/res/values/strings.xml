@@ -1,3 +1,21 @@
 <resources>
     <string name="app_name">Chat App</string>
+    <string name="onboarding_checking">Checking your account…</string>
+    <string name="onboarding_retry">Retry</string>
+    <string name="onboarding_check_error">Could not check your account</string>
+    <string name="error_no_internet">No internet connection. Please check your network and try again.</string>
+    <string name="error_network">A network error occurred. Please try again.</string>
+    <string name="error_timeout">Connection timed out. Please try again.</string>
+    <string name="error_server">Server error. Please try again later.</string>
+    <string name="error_client">Request failed. Please try again.</string>
+    <string name="error_unknown">Something went wrong. Please try again.</string>
+    <string name="create_profile_title">Create your profile</string>
+    <string name="create_profile_subtitle">Pick a photo and choose a username</string>
+    <string name="create_profile_username_label">Username</string>
+    <string name="create_profile_add_photo">Add photo</string>
+    <string name="create_profile_creating">Creating…</string>
+    <string name="create_profile_start_chatting">Start chatting</string>
+    <string name="create_profile_selected_image_description">Selected profile image</string>
+    <string name="create_profile_username_empty">Username cannot be empty</string>
+    <string name="create_profile_registration_failed">Registration failed</string>
 </resources>
