@@ -9,6 +9,7 @@
     <string name="error_server">Server error. Please try again later.</string>
     <string name="error_client">Request failed. Please try again.</string>
     <string name="error_unknown">Something went wrong. Please try again.</string>
+    <string name="error_user_not_loaded">User not loaded. Please try again.</string>
     <string name="create_profile_title">Create your profile</string>
     <string name="create_profile_subtitle">Pick a photo and choose a username</string>
     <string name="create_profile_username_label">Username</string>
@@ -18,4 +19,13 @@
     <string name="create_profile_selected_image_description">Selected profile image</string>
     <string name="create_profile_username_empty">Username cannot be empty</string>
     <string name="create_profile_registration_failed">Registration failed</string>
+    <string name="chat_message_hint">Message</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_empty">No messages yet. Say hi!</string>
+    <string name="chat_load_error">Could not load messages</string>
+    <string name="chat_retry">Retry</string>
+    <string name="chat_failed_tap_retry">Failed · Tap to retry</string>
+    <string name="chat_status_sent">Sent</string>
+    <string name="chat_image_message">Image</string>
+    <string name="chat_audio_message">Audio message</string>
 </resources>

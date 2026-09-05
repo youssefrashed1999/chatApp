@@ -3,7 +3,11 @@ package com.example.chatapp.core
 object Constants {
     object Database {
         const val USERS_TABLE = "users"
+        const val MESSAGES_TABLE = "messages"
         const val DEVICE_ID_COLUMN = "device_id"
+        const val CREATED_AT_COLUMN = "created_at"
+        const val MESSAGES_INSERTS_CHANNEL = "messages-inserts"
+        const val PUBLIC_SCHEMA = "public"
     }
 
     object Storage {
@@ -17,6 +21,14 @@ object Constants {
         const val CREATE_PROFILE_ROUTE = "create_profile"
         const val CHAT_ROUTE = "chat"
     }
+
+    object DateTime {
+        const val TIME_FORMAT = "%02d:%02d"
+        const val DATE_TIME_FORMAT = "%02d/%02d %s"
+        const val DATE_TIME_YEAR_FORMAT = "%02d/%02d/%04d %s"
+    }
+
+    const val PAGE_SIZE = 10
 
     fun getProfileImageStoragePath(deviceId: String) = "${Storage.PROFILE_IMAGE_PREFIX}/$deviceId.${Storage.PROFILE_IMAGE_EXTENSION}"
 }

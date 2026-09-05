@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.chatapp.core.Constants.Navigation.CHAT_ROUTE
 import com.example.chatapp.core.Constants.Navigation.CREATE_PROFILE_ROUTE
 import com.example.chatapp.core.Constants.Navigation.ONBOARDING_ROUTE
+import com.example.chatapp.features.chat.presentation.view.ChatRoute
 import com.example.chatapp.features.users.presentation.createProfile.view.CreateProfileRoute
 import com.example.chatapp.features.users.presentation.onboarding.view.OnboardingRoute
 import com.example.chatapp.ui.theme.ChatAppTheme
@@ -68,7 +69,7 @@ private fun ChatAppNavHost() {
             )
         }
         composable(CHAT_ROUTE) {
-            Text(text = "Chat")
+            ChatRoute()
         }
     }
 }
