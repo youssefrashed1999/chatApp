@@ -55,11 +55,14 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.paging.common)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
@@ -81,17 +84,23 @@ dependencies {
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.realtime)
     implementation(libs.supabase.storage)
-    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.websockets)
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
     // Image loading
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
-    // Firebase / FCM (bonus)
+    // Firebase / FCM
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging.ktx)
+
+    // Paging 3
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
 
     // Unit tests
     testImplementation(libs.junit)

@@ -2,6 +2,10 @@ package com.example.chatapp.core.di
 
 import com.example.chatapp.BuildConfig
 import com.example.chatapp.core.session.CurrentUserProvider
+import com.example.chatapp.features.chat.data.repository.ChatRepositoryImpl
+import com.example.chatapp.features.chat.data.scheduler.MessageSendSchedulerImpl
+import com.example.chatapp.features.chat.domain.repository.ChatRepository
+import com.example.chatapp.features.chat.domain.scheduler.MessageSendScheduler
 import com.example.chatapp.features.users.data.repository.CurrentUserProviderImpl
 import com.example.chatapp.features.users.data.repository.UserRepositoryImpl
 import com.example.chatapp.features.users.domain.repository.UserRepository
@@ -28,6 +32,14 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindCurrentUserProvider(impl: CurrentUserProviderImpl): CurrentUserProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindChatRepository(impl: ChatRepositoryImpl): ChatRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMessageSendScheduler(impl: MessageSendSchedulerImpl): MessageSendScheduler
 
 
     companion object {
