@@ -70,6 +70,8 @@ class SendMessageWorker @AssistedInject constructor(
                 ?: throw IOException("Cannot read $url")
             val extension = applicationContext.contentResolver.getType(uri)
                 ?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
+                ?: uri.lastPathSegment?.substringAfterLast('.', "")
+                    ?.takeIf { it.isNotBlank() }
                 ?: PROFILE_IMAGE_EXTENSION
             chatRepository.uploadImage(
                 Constants.getMessageMediaStoragePath(message.id, index, extension),

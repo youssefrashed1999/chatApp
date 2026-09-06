@@ -1,7 +1,15 @@
 package com.example.chatapp.features.chat.presentation.viewModel
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
@@ -25,8 +33,10 @@ import com.example.chatapp.features.chat.domain.usecase.RefreshMessagesUseCase
 import com.example.chatapp.features.chat.domain.usecase.SendMessageUseCase
 import com.example.chatapp.features.users.domain.entity.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +52,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import androidx.core.net.toUri
+
+private const val MIN_RECORDING_MS = 500L
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -77,10 +90,35 @@ class ChatViewModel @Inject constructor(
 
     private var newestMessageCreatedAt: Instant? = null
 
+    private var mediaRecorder: MediaRecorder? = null
+    private var recordingFile: File? = null
+    private var recordingStartAt: Long = 0L
+    private val preparingMessageIds = mutableSetOf<String>()
+
+    private val _audioPlayers = MutableStateFlow<Map<String, MediaPlayer>>(emptyMap())
+    val audioPlayers: StateFlow<Map<String, MediaPlayer>> = _audioPlayers.asStateFlow()
+
     init {
         getCurrentUser()
         observeLiveMessages()
         observeInternetConnectivity()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            mediaRecorder?.stop()
+        } catch (_: Exception) {
+        }
+        releaseRecorder()
+        recordingFile?.delete()
+        recordingFile = null
+        _audioPlayers.value.values.forEach {
+            try {
+                it.release()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun observeInternetConnectivity() = viewModelScope.launch {
@@ -139,9 +177,14 @@ class ChatViewModel @Inject constructor(
                         .take(Constants.MAX_IMAGES_PER_MESSAGE)
                 )
             }
+
             is ChatIntent.RemovePendingImage -> _uiState.update {
                 it.copy(pendingImageUris = it.pendingImageUris - intent.uri)
             }
+
+            ChatIntent.StartRecording -> startRecording()
+            ChatIntent.StopRecording -> stopRecording()
+            is ChatIntent.ToggleAudioPlayback -> toggleAudioPlayback(intent.message)
             is ChatIntent.Retry -> retry(intent.message)
             is ChatIntent.Cancel -> cancel(intent.message)
             ChatIntent.ClearError -> _uiState.update { it.copy(errorMessage = null) }
@@ -213,7 +256,172 @@ class ChatViewModel @Inject constructor(
                     status != SendStatus.SENT
                 }
                 .catch { upsertTail(message.copy(status = SendStatus.FAILED)) }
-                .collect { status -> upsertTail(message.copy(status = status)) }
+                .collect { status ->
+                    val current = _tail.value.find { it.id == message.id } ?: message
+                    upsertTail(current.copy(status = status))
+                }
+        }
+    }
+
+    private fun startRecording() {
+        if (mediaRecorder != null) return
+        if (ContextCompat.checkSelfPermission(application, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            _uiState.update { it.copy(errorMessage = application.getString(R.string.audio_permission_denied)) }
+            return
+        }
+        pauseAllAudioPlayers()
+        _uiState.update { it.copy(isRecording = true, errorMessage = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dir = File(application.cacheDir, "audio_messages").apply { mkdirs() }
+                val file = File(dir, "audio_${UUID.randomUUID()}.m4a")
+                recordingFile = file
+                val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(application) else MediaRecorder()
+                recorder.apply {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setOutputFile(file.absolutePath)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    prepare()
+                    start()
+                }
+                mediaRecorder = recorder
+                recordingStartAt = SystemClock.elapsedRealtime()
+            } catch (_: Exception) {
+                recordingFile?.delete()
+                recordingFile = null
+                recordingStartAt = 0L
+                releaseRecorder()
+                _uiState.update { it.copy(isRecording = false, errorMessage = application.getString(R.string.audio_record_error)) }
+            }
+        }
+    }
+
+    private fun stopRecording() {
+        if (mediaRecorder == null) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val recorder = mediaRecorder ?: return@launch
+            try {
+                recorder.stop()
+            } catch (_: Exception) {
+            } finally {
+                releaseRecorder()
+            }
+            val file = recordingFile ?: return@launch
+            val duration = SystemClock.elapsedRealtime() - recordingStartAt
+            if (duration < MIN_RECORDING_MS) {
+                file.delete()
+                _uiState.update { it.copy(isRecording = false) }
+                recordingFile = null
+                recordingStartAt = 0L
+                return@launch
+            }
+            val user = currentUser
+            if (user == null) {
+                file.delete()
+                _uiState.update { it.copy(isRecording = false, errorMessage = application.getString(R.string.error_user_not_loaded)) }
+                recordingFile = null
+                recordingStartAt = 0L
+                return@launch
+            }
+            try {
+                val uri = FileProvider.getUriForFile(application, "${application.packageName}.fileprovider", file)
+                _uiState.update { it.copy(isRecording = false) }
+                sendAudio(uri, user)
+            } catch (_: Exception) {
+                file.delete()
+                _uiState.update { it.copy(isRecording = false, errorMessage = application.getString(R.string.audio_record_error)) }
+                recordingFile = null
+                recordingStartAt = 0L
+            }
+        }
+    }
+
+    private fun sendAudio(uri: Uri, sender: UserProfile) {
+        val message = Message(
+            id = UUID.randomUUID().toString(),
+            sender = sender,
+            content = MessageContent.audio(uri.toString()),
+            status = SendStatus.SENDING,
+            createdAt = Clock.System.now()
+        )
+        sendMessage(message)
+        recordingFile = null
+        recordingStartAt = 0L
+    }
+
+    private fun releaseRecorder() {
+        try {
+            mediaRecorder?.release()
+        } catch (_: Exception) {
+        }
+        mediaRecorder = null
+    }
+
+    private fun toggleAudioPlayback(message: Message) {
+        if (message.id in preparingMessageIds) return
+        val player = _audioPlayers.value[message.id]
+        if (player == null) {
+            prepareAudioPlayer(message)
+            return
+        }
+        try {
+            if (player.isPlaying) {
+                player.pause()
+            } else {
+                pauseAllAudioPlayers()
+                player.start()
+            }
+        } catch (_: Exception) {
+            releasePlayer(message.id)
+        }
+    }
+
+    private fun pauseAllAudioPlayers() {
+        _audioPlayers.value.values.forEach { player ->
+            try {
+                if (player.isPlaying) player.pause()
+            } catch (_: Exception) {
+                // invalid player will be cleaned up when its message is played again
+            }
+        }
+    }
+
+    private fun prepareAudioPlayer(message: Message) {
+        val url = message.content.mediaUrls.firstOrNull() ?: return
+        preparingMessageIds.add(message.id)
+        val player = MediaPlayer()
+        player.setOnPreparedListener {
+            preparingMessageIds.remove(message.id)
+            _audioPlayers.update { it + (message.id to player) }
+            pauseAllAudioPlayers()
+            player.start()
+        }
+        player.setOnCompletionListener {
+            player.seekTo(0)
+        }
+        player.setOnErrorListener { _, _, _ ->
+            preparingMessageIds.remove(message.id)
+            releasePlayer(message.id)
+            _uiState.update { it.copy(errorMessage = application.getString(R.string.audio_play_error)) }
+            true
+        }
+        try {
+            player.setDataSource(application, url.toUri())
+            player.prepareAsync()
+        } catch (_: Exception) {
+            preparingMessageIds.remove(message.id)
+            releasePlayer(message.id)
+            _uiState.update { it.copy(errorMessage = application.getString(R.string.audio_play_error)) }
+        }
+    }
+
+    private fun releasePlayer(id: String) {
+        val player = _audioPlayers.value[id]
+        _audioPlayers.update { it - id }
+        try {
+            player?.release()
+        } catch (_: Exception) {
         }
     }
 }
