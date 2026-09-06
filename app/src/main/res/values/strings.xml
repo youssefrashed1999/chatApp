@@ -21,6 +21,8 @@
     <string name="create_profile_registration_failed">Registration failed</string>
     <string name="chat_message_hint">Message</string>
     <string name="chat_send">Send</string>
+    <string name="chat_attach">Attach images</string>
+    <string name="chat_remove_image">Remove image</string>
     <string name="chat_empty">No messages yet. Say hi!</string>
     <string name="chat_load_error">Could not load messages</string>
     <string name="chat_retry">Retry</string>
@@ -28,4 +30,10 @@
     <string name="chat_status_sent">Sent</string>
     <string name="chat_image_message">Image</string>
     <string name="chat_audio_message">Audio message</string>
+    <string name="chat_uploading_images">Uploading images…</string>
+    <string name="chat_upload_failed">Couldn\'t send images</string>
+    <string name="chat_cancel">Cancel</string>
+    <string name="chat_close">Close</string>
+    <string name="chat_image_counter">%1$d / %2$d</string>
+    <string name="notification_channel_message_send">Message sending</string>
 </resources>

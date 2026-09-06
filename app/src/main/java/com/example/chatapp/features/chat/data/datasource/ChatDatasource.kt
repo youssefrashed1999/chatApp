@@ -52,7 +52,7 @@ class ChatDatasource @Inject constructor(private val supabaseClient: SupabaseCli
     }
 
     suspend fun uploadImage(path: String, bytes: ByteArray): String {
-        supabaseClient.storage.from(BUCKET).upload(path, bytes) { upsert = false }
+        supabaseClient.storage.from(BUCKET).upload(path, bytes) { upsert = true }
         return supabaseClient.storage.from(BUCKET).publicUrl(path)
     }
 }

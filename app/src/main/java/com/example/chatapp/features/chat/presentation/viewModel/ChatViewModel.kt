@@ -1,6 +1,7 @@
 package com.example.chatapp.features.chat.presentation.viewModel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
@@ -9,6 +10,7 @@ import androidx.paging.cachedIn
 import androidx.paging.filter
 import androidx.paging.insertHeaderItem
 import com.example.chatapp.R
+import com.example.chatapp.core.Constants
 import com.example.chatapp.core.error.toUserMessage
 import com.example.chatapp.core.network.ConnectivityObserver
 import com.example.chatapp.core.session.CurrentUserProvider
@@ -130,6 +132,16 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(inputText = intent.text, errorMessage = null) }
 
             ChatIntent.Send -> send()
+            is ChatIntent.ImagesPicked -> _uiState.update {
+                it.copy(
+                    pendingImageUris = (it.pendingImageUris + intent.uris)
+                        .distinct()
+                        .take(Constants.MAX_IMAGES_PER_MESSAGE)
+                )
+            }
+            is ChatIntent.RemovePendingImage -> _uiState.update {
+                it.copy(pendingImageUris = it.pendingImageUris - intent.uri)
+            }
             is ChatIntent.Retry -> retry(intent.message)
             is ChatIntent.Cancel -> cancel(intent.message)
             ChatIntent.ClearError -> _uiState.update { it.copy(errorMessage = null) }
@@ -154,17 +166,23 @@ class ChatViewModel @Inject constructor(
 
     private fun send() {
         val text = _uiState.value.inputText.trim()
-        if (text.isEmpty()) return
-        _uiState.update { it.copy(inputText = "") }
+        val images = _uiState.value.pendingImageUris
+        if (text.isEmpty() && images.isEmpty()) return
 
         if (currentUser == null) {
             _uiState.update { it.copy(errorMessage = application.getString(R.string.error_user_not_loaded)) }
             return
         }
+        _uiState.update { it.copy(inputText = "", pendingImageUris = emptyList()) }
+        val content = if (images.isNotEmpty()) {
+            MessageContent.images(images.map { it.toString() }, text.ifBlank { null })
+        } else {
+            MessageContent.text(text)
+        }
         val message = Message(
             id = UUID.randomUUID().toString(),
             sender = currentUser!!,
-            content = MessageContent.text(text),
+            content = content,
             status = SendStatus.SENDING,
             createdAt = Clock.System.now()
         )
@@ -192,7 +210,7 @@ class ChatViewModel @Inject constructor(
             observeMessageStatusUseCase(message.id)
                 .transformWhile { status ->
                     emit(status)
-                    status == SendStatus.SENDING
+                    status != SendStatus.SENT
                 }
                 .catch { upsertTail(message.copy(status = SendStatus.FAILED)) }
                 .collect { status -> upsertTail(message.copy(status = status)) }

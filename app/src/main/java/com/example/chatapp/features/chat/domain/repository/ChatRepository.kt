@@ -11,4 +11,6 @@ interface ChatRepository {
     suspend fun sendMessage(message: Message): Result<Unit>
 
     suspend fun refreshMessages(lastCreatedAt: Instant): List<Message>
+
+    suspend fun uploadImage(path: String, bytes: ByteArray): String
 }
