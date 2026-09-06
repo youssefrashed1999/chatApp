@@ -46,7 +46,7 @@ class OnboardingViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val user = getCurrentUserUseCase()
+                val user = getCurrentUserUseCase(forceRefresh = true)
                 if (user != null) {
                     _uiState.update { it.copy(isLoading = false, navigateToChat = true) }
                 } else {

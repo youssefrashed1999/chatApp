@@ -7,5 +7,6 @@ import javax.inject.Inject
 class GetCurrentUserUseCase @Inject constructor(
     private val repository: UserRepository
 ) {
-    suspend operator fun invoke(): UserProfile? = repository.getCurrentUser()
+    suspend operator fun invoke(forceRefresh: Boolean = false): UserProfile? =
+        repository.getCurrentUser(forceRefresh)
 }
