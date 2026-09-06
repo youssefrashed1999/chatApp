@@ -14,6 +14,7 @@ object Constants {
         const val BUCKET = "chat-media"
         const val PROFILE_IMAGE_PREFIX = "profiles"
         const val PROFILE_IMAGE_EXTENSION = "jpg"
+        const val MESSAGE_MEDIA_PREFIX = "messages"
     }
 
     object Navigation {
@@ -28,7 +29,15 @@ object Constants {
         const val DATE_TIME_YEAR_FORMAT = "%02d/%02d/%04d %s"
     }
 
+    object Notifications {
+        const val MESSAGE_SEND_CHANNEL_ID = "message_send"
+    }
+
     const val PAGE_SIZE = 10
+    const val MAX_IMAGES_PER_MESSAGE = 10
 
     fun getProfileImageStoragePath(deviceId: String) = "${Storage.PROFILE_IMAGE_PREFIX}/$deviceId.${Storage.PROFILE_IMAGE_EXTENSION}"
+
+    fun getMessageMediaStoragePath(messageId: String, index: Int, extension: String) =
+        "${Storage.MESSAGE_MEDIA_PREFIX}/$messageId/$index.$extension"
 }

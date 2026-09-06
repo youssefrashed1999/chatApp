@@ -37,4 +37,7 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun refreshMessages(lastCreatedAt: Instant): List<Message> {
         return remoteDataSource.refreshMessages(lastCreatedAt).map { it.toEntity() }
     }
+
+    override suspend fun uploadImage(path: String, bytes: ByteArray): String =
+        remoteDataSource.uploadImage(path, bytes)
 }
