@@ -3,6 +3,7 @@ package com.example.chatapp.features.chat.presentation.view
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,8 +41,11 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -90,16 +94,20 @@ import com.example.chatapp.features.chat.domain.entity.SendStatus
 import com.example.chatapp.features.chat.presentation.viewModel.ChatIntent
 import com.example.chatapp.features.chat.presentation.viewModel.ChatState
 import com.example.chatapp.features.chat.presentation.viewModel.ChatViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun ChatRoute(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val audioPlayers by viewModel.audioPlayers.collectAsState()
     val messages = viewModel.messages.collectAsLazyPagingItems()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -107,6 +115,12 @@ fun ChatRoute(
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
+
+    val recordPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) viewModel.handleIntent(ChatIntent.StartRecording)
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(Constants.MAX_IMAGES_PER_MESSAGE)
@@ -128,12 +142,25 @@ fun ChatRoute(
         }
     }
 
+    val startRecording = {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ->
+                viewModel.handleIntent(ChatIntent.StartRecording)
+
+            else -> recordPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+    val stopRecording = { viewModel.handleIntent(ChatIntent.StopRecording) }
+
     ChatScreen(
         uiState = uiState,
+        audioPlayers = audioPlayers,
         messages = messages,
         snackbarHostState = snackbarHostState,
         onIntent = viewModel::handleIntent,
-        onPickImages = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+        onPickImages = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onStartRecording = startRecording,
+        onStopRecording = stopRecording
     )
 }
 
@@ -151,10 +178,13 @@ private fun requestNotificationPermissionIfNeeded(
 @Composable
 private fun ChatScreen(
     uiState: ChatState,
+    audioPlayers: Map<String, MediaPlayer>,
     messages: LazyPagingItems<Message>,
     snackbarHostState: SnackbarHostState,
     onIntent: (ChatIntent) -> Unit,
-    onPickImages: () -> Unit
+    onPickImages: () -> Unit,
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit
 ) {
     var viewerImages by remember { mutableStateOf<List<String>?>(null) }
     var viewerStartIndex by remember { mutableIntStateOf(0) }
@@ -186,13 +216,15 @@ private fun ChatScreen(
                         messages[index]?.let { message ->
                             MessageRow(
                                 message = message,
+                                audioPlayers = audioPlayers,
                                 isOwn = message.sender.deviceId == uiState.currentDeviceId,
                                 onRetry = { onIntent(ChatIntent.Retry(message)) },
                                 onCancel = { onIntent(ChatIntent.Cancel(message)) },
                                 onImageClick = { urls, index ->
                                     viewerStartIndex = index
                                     viewerImages = urls
-                                }
+                                },
+                                onToggleAudio = { onIntent(ChatIntent.ToggleAudioPlayback(it)) }
                             )
                         }
                     }
@@ -247,12 +279,24 @@ private fun ChatScreen(
                 )
             }
 
+            if (uiState.isRecording) {
+                Text(
+                    text = stringResource(R.string.audio_recording),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                )
+            }
+
             MessageInputBar(
                 text = uiState.inputText,
                 onTextChange = { onIntent(ChatIntent.InputChanged(it)) },
                 onSend = { onIntent(ChatIntent.Send) },
                 onPickImages = onPickImages,
-                sendEnabled = uiState.inputText.isNotBlank() || uiState.pendingImageUris.isNotEmpty()
+                onStartRecording = onStartRecording,
+                onStopRecording = onStopRecording,
+                sendEnabled = uiState.inputText.isNotBlank() || uiState.pendingImageUris.isNotEmpty(),
+                isRecording = uiState.isRecording
             )
         }
     }
@@ -269,10 +313,12 @@ private fun ChatScreen(
 @Composable
 private fun MessageRow(
     message: Message,
+    audioPlayers: Map<String, MediaPlayer>,
     isOwn: Boolean,
     onRetry: () -> Unit,
     onCancel: () -> Unit,
-    onImageClick: (List<String>, Int) -> Unit
+    onImageClick: (List<String>, Int) -> Unit,
+    onToggleAudio: (Message) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -317,7 +363,7 @@ private fun MessageRow(
                     )
                 }
 
-                MessageContentView(message, onImageClick)
+                MessageContentView(message, audioPlayers[message.id], onImageClick, onToggleAudio)
 
                 Row(
                     modifier = Modifier
@@ -378,7 +424,9 @@ private fun MessageAvatar(imageUrl: String?, contentDescription: String?) {
 @Composable
 private fun MessageContentView(
     message: Message,
-    onImageClick: (List<String>, Int) -> Unit
+    player: MediaPlayer?,
+    onImageClick: (List<String>, Int) -> Unit,
+    onToggleAudio: (Message) -> Unit
 ) {
     when (message.content.type) {
         MediaType.TEXT -> Text(
@@ -427,19 +475,7 @@ private fun MessageContentView(
             }
         }
 
-        MediaType.AUDIO -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = stringResource(R.string.chat_audio_message)
-            )
-            Text(
-                text = stringResource(R.string.chat_audio_message),
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
+        MediaType.AUDIO -> AudioMessagePlayer(message, player, onToggleAudio)
     }
 }
 
@@ -607,12 +643,70 @@ private fun PendingImagesRow(
 }
 
 @Composable
+private fun AudioMessagePlayer(
+    message: Message,
+    player: MediaPlayer?,
+    onToggleAudio: (Message) -> Unit
+) {
+    val url = message.content.mediaUrls.firstOrNull()
+    if (url.isNullOrBlank()) {
+        Text(stringResource(R.string.chat_audio_message))
+        return
+    }
+
+    var isPlaying by remember(message.id, player) { mutableStateOf(false) }
+    var progress by remember(message.id, player) { mutableIntStateOf(0) }
+    var duration by remember(message.id, player) { mutableIntStateOf(0) }
+
+    LaunchedEffect(message.id, player) {
+        if (player == null) {
+            isPlaying = false
+            progress = 0
+            duration = 0
+            return@LaunchedEffect
+        }
+        while (isActive) {
+            try {
+                isPlaying = player.isPlaying
+                progress = player.currentPosition.coerceAtLeast(0)
+                duration = player.duration.coerceAtLeast(0)
+            } catch (_: Exception) {
+                break
+            }
+            delay(100L.milliseconds)
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        IconButton(
+            onClick = { onToggleAudio(message) },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) stringResource(R.string.audio_pause) else stringResource(R.string.audio_play)
+            )
+        }
+        Text(
+            text = if (isPlaying) formatAudioProgress(progress, duration) else formatAudioDuration(duration),
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
 private fun MessageInputBar(
     text: String,
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onPickImages: () -> Unit,
-    sendEnabled: Boolean
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit,
+    sendEnabled: Boolean,
+    isRecording: Boolean
 ) {
     Row(
         modifier = Modifier
@@ -621,7 +715,7 @@ private fun MessageInputBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        IconButton(onClick = onPickImages) {
+        IconButton(onClick = onPickImages, enabled = !isRecording) {
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = stringResource(R.string.chat_attach)
@@ -629,16 +723,49 @@ private fun MessageInputBar(
         }
         OutlinedTextField(
             value = text,
-            onValueChange = onTextChange,
+            onValueChange = if (isRecording) ({ }) else onTextChange,
             placeholder = { Text(stringResource(R.string.chat_message_hint)) },
+            enabled = !isRecording,
             maxLines = 4,
             modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onSend, enabled = sendEnabled) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Send,
-                contentDescription = stringResource(R.string.chat_send)
-            )
+        IconButton(
+            onClick = {
+                when {
+                    isRecording -> onStopRecording()
+                    sendEnabled -> onSend()
+                    else -> onStartRecording()
+                }
+            }
+        ) {
+            when {
+                isRecording -> Icon(
+                    imageVector = Icons.Default.Stop,
+                    contentDescription = stringResource(R.string.audio_stop_recording)
+                )
+
+                sendEnabled -> Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = stringResource(R.string.chat_send)
+                )
+
+                else -> Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = stringResource(R.string.audio_record)
+                )
+            }
         }
     }
+}
+
+private fun formatAudioDuration(ms: Int): String {
+    val totalSeconds = ms / 1000
+    return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
+}
+
+private fun formatAudioProgress(progress: Int, duration: Int): String {
+    val progressSeconds = progress / 1000
+    val durationSeconds = duration / 1000
+    return "${progressSeconds / 60}:${(progressSeconds % 60).toString().padStart(2, '0')} / " +
+            "${durationSeconds / 60}:${(durationSeconds % 60).toString().padStart(2, '0')}"
 }

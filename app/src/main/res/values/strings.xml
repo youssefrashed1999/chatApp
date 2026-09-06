@@ -30,6 +30,14 @@
     <string name="chat_status_sent">Sent</string>
     <string name="chat_image_message">Image</string>
     <string name="chat_audio_message">Audio message</string>
+    <string name="audio_record">Record audio</string>
+    <string name="audio_stop_recording">Stop recording</string>
+    <string name="audio_play">Play</string>
+    <string name="audio_pause">Pause</string>
+    <string name="audio_recording">Recording audio…</string>
+    <string name="audio_record_error">Could not record audio</string>
+    <string name="audio_play_error">Could not play audio</string>
+    <string name="audio_permission_denied">Microphone permission denied</string>
     <string name="chat_uploading_images">Uploading images…</string>
     <string name="chat_upload_failed">Couldn\'t send images</string>
     <string name="chat_cancel">Cancel</string>
