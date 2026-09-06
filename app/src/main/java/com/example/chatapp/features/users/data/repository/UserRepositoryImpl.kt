@@ -74,7 +74,7 @@ class UserRepositoryImpl @Inject constructor(
         return Result.failure(exception.toDomainException())
     }
 
-    private companion object {
+    companion object {
         const val PREFS_NAME = "user_session"
         const val KEY_DEVICE_ID = "device_id"
         const val KEY_USERNAME = "username"
